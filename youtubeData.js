@@ -10,22 +10,30 @@ d3.json("/var/www/html/js/posts/vanishing-student/json/classData.json", function
 function drawGraph(){
     var SVG_WIDTH = 900;            //in px
     var SVG_HEIGHT = 500;           //in px
+    var OPTION_PANE_WIDTH = 200;    //in px;
     var GRAPH_LOC = '#data-graph';  //point of graph insertion
     var PRETTY_X_OFFSET = 10;       //push graph right
     
-    //holds data necessary for normalization
+    //holds data for normalization, checkboxes
     var maxY = {};
     var maxX = {};
+    var topics = {};//not using sets for backwards compatibility
+    var authors = {};
 
     for(var pl in data){
         var vidObj = data[pl]['videos'];
         index = data[pl]['plId'];
         maxX[index] = vidObj.length;
         maxY[index] = 0;
+        topics[data[pl]['topic']] = true;
+        authors[data[pl]['plAuthor']] = true;
         for(var vidId in vidObj){
             maxY[index] = Math.max(maxY[index], vidObj[vidId]['viewCount']);
         }
     }
+
+    console.log(topics);
+    console.log(authors);
 
     //line generator function 
     var lineFunction = d3.svg.line()
@@ -37,7 +45,10 @@ function drawGraph(){
     lineData = {}//holds point data for line creation
 
     //generate groupings
-    var gs = d3.select('body').append("svg")
+    var gs = d3.select(GRAPH_LOC)
+      .style( {  'height'    : SVG_HEIGHT+'px',
+                'width'     : OPTION_PANE_WIDTH+SVG_WIDTH+10+'px' } )
+      .append("svg")
       .attr('width', SVG_WIDTH+'px')
       .attr('height', SVG_HEIGHT+'px')
       .style('border', "1px solid black")
@@ -73,11 +84,30 @@ function drawGraph(){
         .attr("fill", "none");
     });
 
-    //TODO: Generate check boxes for removal
-   /* gs.each(function() {
-        
-    }*/
-   /* d3.selectAll("g").each(function(){
-        d3.select(this).select
-    console.log(d3.select(this).select("path"));     });*/
+    d3.select(GRAPH_LOC)
+    .append('div')
+    .attr('id', 'selector')
+    .style( {'width' : OPTION_PANE_WIDTH+'px',
+            'height': SVG_HEIGHT+'px'}   );
+
+    var checkVals = [topics, authors, {"Norm X" : true, "Norm Y": true}];
+    var checkNames = ["Topics", "Authors", "Options"];
+    for(var arr in checkVals) {
+        d3.select("#selector")
+        .append('div')
+        .text(checkNames[arr]);
+        for (var i in checkVals[arr]){
+            var div = d3.select("#selector")
+            .append('div')
+            div.append('label')
+            .text(i)
+            div.append('input')
+            .attr('type', 'checkbox')
+            .attr('value', i)
+            .attr('class', checkNames[arr])
+            .attr('id', i+"-box");
+        }
+    }
+
+
 }
