@@ -34,6 +34,11 @@ function drawGraph(){
                         .y(function(d) { return d.y; })
                         .interpolate("linear");
 
+    var colors = //for auto-coloring
+    ["red", "green", "blue", "orange", "purple", "darkblue", "fuchsia", 
+    "maroon", "silver", "slateblue", "darkgoldenrod", "indigo", "plum", "magenta",
+    "olive", "silkblue", "teal", "greenthumb", "copper", "taupe"];
+
     /******************************************************************
     *                           Helpers                               *
     ******************************************************************/
@@ -165,7 +170,7 @@ function drawGraph(){
     for(var arr in checkVals) {
         d3.select("#selector")
         .append('div')
-        .text(checkNames[arr]);
+        .html("<b>"+checkNames[arr]+"</b>");
         for (var i in checkVals[arr]){
             var div = d3.select("#selector")
             .append('div')
@@ -221,9 +226,9 @@ function drawGraph(){
       .attr('id', function(d) {return d['plId']})
       .attr('class', function(d) {return rms(d['topic']) +" "+rms(d['plAuthor']) + " non-axis no-show";});
 
-    var topics = d3.selectAll(".Topics");
-    var rand = Math.floor(Math.random()*topics.size());
-    var checked =topics.filter(function(d, i){return i === rand}).property('checked', true);
+    var topicsList = d3.selectAll(".Topics");
+    var rand = Math.floor(Math.random()*topicsList.size());
+    var checked =topicsList.filter(function(d, i){return i === rand}).property('checked', true);
     d3.selectAll("g."+checked.property("value")).classed("no-show", false);
     newMax();
 
@@ -248,6 +253,13 @@ function drawGraph(){
     gs.append('path')
       .attr("class", function(d) {return d['topic']+"-line"})
       .attr("id", function(d) { lineData[d['plId']] = []; return d['plId']; });
+    
+    var i = 0;
+    for(var t in topics){
+        d3.selectAll("."+t).attr("fill", colors[i%colors.length]);
+        d3.selectAll("."+t+"-line").attr("stroke", colors[i%colors.length]);
+        i++;
+    }
 
     var path, circles; //previously moused element (for removal on new mouseover)
     
