@@ -25,25 +25,45 @@ function drawGraph(){
     var lineData = {};
     var scale = d3.scale.linear().range([0, SVG_HEIGHT]);
     var axisX = d3.svg.axis().scale(d3.scale.linear().range([0, SVG_WIDTH]));
-    var axisY = d3.svg.axis().scale(d3.scale.linear().range([SVG_HEIGHT, 0])).orient("right");
+    var axisY = d3.svg.axis().scale(d3.scale.linear().range([SVG_HEIGHT, 0])).orient("left")
+   
+
     //line generator function 
     var lineFunction = d3.svg.line()
                         .x(function(d) { return d.x; })
                         .y(function(d) { return d.y; })
                         .interpolate("linear");
 
-
-    for(var pl in data){
-        var vidObj = data[pl]['videos'];
-        index = data[pl]['plId'];
-        topics[data[pl]['topic']] = true;
-        authors[data[pl]['plAuthor']] = true;
-        maxPlY[index] = 0;
-        for(var vidId in vidObj){
-            maxPlY[index] = Math.max(maxPlY[index], vidObj[vidId]['viewCount']);
-        }   
+    /******************************************************************
+    *                           Helpers                               *
+    ******************************************************************/
+    //get x value for circle
+    function getX(d, i, t){
+        if(d3.select("#NormX-box").property("checked"))
+            return SVG_WIDTH*i/d3.select(t.parentNode).datum()['videos'].length + PRETTY_X_OFFSET;
+        else
+            return SVG_WIDTH*i/maxX + PRETTY_X_OFFSET;
     }
 
+    //get y value for circle
+    function getY(d, t){
+        if(d3.select("#NormY-box").property("checked"))
+            return SVG_HEIGHT - scale(d['viewCount']/maxPlY[d3.select(t.parentNode).datum()['plId']]);
+        else
+            return SVG_HEIGHT - scale(d['viewCount']/maxY);
+    }
+    
+    //simple url return function
+    function getURL(d, t){
+        vidId = d["videoId"];
+        plId = d3.select(t.parentNode).datum()["plId"];
+        return "https://www.youtube.com/watch?v="+vidId+"&list="+plId;
+    }
+
+    //simple space-saving function to remove space from string
+    function rms(s){
+        return s.replace(/\s+/g, '')
+    }
 
     //calculate maximums for shown graphs
     function newMax(){
@@ -61,7 +81,7 @@ function drawGraph(){
     function updatePlot(){
         lineData = {};
         d3.selectAll('g.non-axis').each(function() {
-            d3.select(this).selectAll('circle').transition()
+            d3.select(this).selectAll('circle').transition().duration(500)
             .attr("cx", function(d, i) {return getX(d, i, this);})
             .attr("cy", function(d) {return getY(d, this);})
             .each(function(d, i) {
@@ -73,12 +93,19 @@ function drawGraph(){
                     {"x": getX(d, i, this),
                     "y": getY(d, this)}
                 );
-                if(i === p.datum()['videos'].length-1){
+                if(i === p.datum()['videos'].length-1){//check needed for concurrency
                     updatePath(this.parentNode);
                 }
             });
         });
     }
+
+    function updatePath(t){
+        var plId = d3.select(t).attr('id');
+        if(lineData[plId] == null) return; //empty playlist!
+        d3.select(t).select("path").transition().duration(500).attr("d", lineFunction(lineData[plId]));
+    }
+
 
     function updateAxes(){
         if(d3.select("#NormX-box").property("checked"))
@@ -90,8 +117,24 @@ function drawGraph(){
         else
             axisY.scale(d3.scale.linear().domain([maxY, 0]).range([0, SVG_HEIGHT]));
         d3.select("#x-axis").call(axisX);
-        d3.select("#y-axis").call(axisY);
+        d3.select("#y-axis").attr("transform", "translate("+SVG_WIDTH+", 0)").call(axisY);
     }
+
+    //initialize data, helping variables
+    for(var pl in data){
+        var vidObj = data[pl]['videos'];
+        index = data[pl]['plId'];
+        topics[data[pl]['topic']] = true;
+        authors[data[pl]['plAuthor']] = true;
+        maxPlY[index] = 0;
+        for(var vidId in vidObj){
+            maxPlY[index] = Math.max(maxPlY[index], vidObj[vidId]['viewCount']);
+        }   
+    }
+
+    /******************************************************************
+    *                           Program                               *
+    ******************************************************************/
 
     //generate checkbox container
     d3.select(GRAPH_LOC)
@@ -100,6 +143,8 @@ function drawGraph(){
     .style( {'width' : OPTION_PANE_WIDTH+'px',
             'height': SVG_HEIGHT+'px'}   );
 
+    /*TODO: auto-color*/
+    
     //generate checkboxes
     var checkVals = [topics, authors, {"Norm X" : true, "Norm Y": true}];
     var checkNames = ["Topics", "Authors", "Options"];
@@ -119,7 +164,6 @@ function drawGraph(){
             .attr('id', rms(i)+"-box");
             //norm box behavior
             if(arr == 2){
-                input.property("checked", true);
                 input.on("change", function(){
                     updatePlot();
                     updateAxes();
@@ -192,8 +236,8 @@ function drawGraph(){
       .attr("id", function(d) { lineData[d['plId']] = []; return d['plId']; });
 
     var path, circles; //previously moused element (for removal on new mouseover)
+    
     //generate SVG dots (options: x,y {un}normalized 
-
     gs.selectAll("g").data(function(d, i) {return d['videos'];})
       .enter().append('circle')
       .attr("class", function() {return d3.select(this.parentNode).datum()['topic']})
@@ -206,6 +250,7 @@ function drawGraph(){
                   {"x": d3.select(this).attr("cx"),
                    "y": d3.select(this).attr("cy")}
             )}
+      //expand line and add description on node mouseover
       ).on("mouseover", function(d){
             var pd = d3.select(this.parentNode).classed("selected", true).datum();
             d3.select('#vid-img')
@@ -225,7 +270,7 @@ function drawGraph(){
             circles = d3.selectAll(this.parentNode.getElementsByTagName("circle")).attr("r", 15);
             path = d3.selectAll(this.parentNode.getElementsByTagName("path")).attr("stroke-width", 20);
            
-            this.parentNode.parentNode.appendChild(this.parentNode);
+            this.parentNode.parentNode.appendChild(this.parentNode); //repaint
     }).on("click", function(d){
         window.open(getURL(d, this));
     });
@@ -236,36 +281,5 @@ function drawGraph(){
         .attr("fill", "none");
 
     d3.select("svg").append("g").call(axisX).attr("id", "x-axis");
-    d3.select("svg").append("g").call(axisY).attr("id", "y-axis");
-
-    function getX(d, i, t){
-        if(d3.select("#NormX-box").property("checked"))
-            return SVG_WIDTH*i/d3.select(t.parentNode).datum()['videos'].length + PRETTY_X_OFFSET;
-        else
-            return SVG_WIDTH*i/maxX + PRETTY_X_OFFSET;
-    }
-
-    function getY(d, t){
-        if(d3.select("#NormY-box").property("checked"))
-            return SVG_HEIGHT - scale(d['viewCount']/maxPlY[d3.select(t.parentNode).datum()['plId']]);
-        else
-            return SVG_HEIGHT - scale(d['viewCount']/maxY);
-    }
-
-    function getURL(d, t){
-        vidId = d["videoId"];
-        plId = d3.select(t.parentNode).datum()["plId"];
-        return "https://www.youtube.com/watch?v="+vidId+"&list="+plId;
-    }
-     
-    function updatePath(t){
-        var plId = d3.select(t).attr('id');
-        if(lineData[plId] == null) return; //empty playlist!
-        d3.select(t).select("path").transition().attr("d", lineFunction(lineData[plId]));
-    }
-
-    //simple space-saving function to remove space from string
-    function rms(s){
-        return s.replace(/\s+/g, '')
-    }
+    d3.select("svg").append("g").call(axisY).attr("transform", "translate("+SVG_WIDTH+", 0)").attr("id", "y-axis");
 }
