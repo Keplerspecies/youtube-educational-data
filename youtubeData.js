@@ -13,7 +13,7 @@ function drawGraph(){
     var OPTION_PANE_WIDTH = 200;    //in px
     var VID_PANE_WIDTH = 200;       //in px
     var GRAPH_LOC = '#data-graph';  //point of graph insertion
-    var PRETTY_X_OFFSET = 10;       //push graph right
+    var PRETTY_X_OFFSET = 3;       //push graph right
     
     //holds data for normalization, checkboxes
     var maxPlY = {}
@@ -23,7 +23,7 @@ function drawGraph(){
 
     //holds point data for line creation
     var lineData = {};
-    var scale = d3.scale.linear().range([0, SVG_HEIGHT]);
+    var scaleY = d3.scale.linear();
     var axisX = d3.svg.axis().scale(d3.scale.linear().range([0, SVG_WIDTH]));
     var axisY = d3.svg.axis().scale(d3.scale.linear().range([SVG_HEIGHT, 0])).orient("left")
    
@@ -39,18 +39,30 @@ function drawGraph(){
     ******************************************************************/
     //get x value for circle
     function getX(d, i, t){
+
         if(d3.select("#NormX-box").property("checked"))
-            return SVG_WIDTH*i/d3.select(t.parentNode).datum()['videos'].length + PRETTY_X_OFFSET;
+            return SVG_WIDTH * i/d3.select(t.parentNode).datum()['videos'].length + PRETTY_X_OFFSET;
         else
-            return SVG_WIDTH*i/maxX + PRETTY_X_OFFSET;
+            return SVG_WIDTH * i/maxX + PRETTY_X_OFFSET;
     }
 
     //get y value for circle
     function getY(d, t){
-        if(d3.select("#NormY-box").property("checked"))
-            return SVG_HEIGHT - scale(d['viewCount']/maxPlY[d3.select(t.parentNode).datum()['plId']]);
-        else
-            return SVG_HEIGHT - scale(d['viewCount']/maxY);
+        if(d3.select("#NormY-box").property("checked")){
+            var localMaxY = maxPlY[d3.select(t.parentNode).datum()['plId']];
+            newScale(localMaxY);
+            return SVG_HEIGHT - SVG_HEIGHT*scaleY(d['viewCount'])/scaleY(localMaxY);
+        }
+        else{
+            newScale(maxY);
+            return SVG_HEIGHT - SVG_HEIGHT*scaleY(d['viewCount'])/scaleY(maxY);             
+        }
+        function newScale(endDomain){
+            if(d3.select("#LnPlot-box").property("checked"))
+                scaleY = d3.scale.log().base(Math.E).domain([1, endDomain]).range([0, 1]);
+            else
+                scaleY = d3.scale.linear();
+        }
     }
     
     //simple url return function
@@ -113,9 +125,11 @@ function drawGraph(){
         else
             axisX.scale(d3.scale.linear().domain([0, maxX]).range([0, SVG_WIDTH]));
         if(d3.select("#NormY-box").property("checked"))
-            axisY.scale(d3.scale.linear().range([0, SVG_HEIGHT]));
+            axisY.scale(d3.scale.linear().range([SVG_HEIGHT, 0]));
+        else if(d3.select("#LnPlot-box").property("checked"))
+            axisY.scale(d3.scale.log().domain([1, maxY]).range([SVG_HEIGHT, 0]));  
         else
-            axisY.scale(d3.scale.linear().domain([maxY, 0]).range([0, SVG_HEIGHT]));
+            axisY.scale(d3.scale.linear().domain([0, maxY]).range([SVG_HEIGHT, 0]));
         d3.select("#x-axis").call(axisX);
         d3.select("#y-axis").attr("transform", "translate("+SVG_WIDTH+", 0)").call(axisY);
     }
@@ -146,7 +160,7 @@ function drawGraph(){
     /*TODO: auto-color*/
     
     //generate checkboxes
-    var checkVals = [topics, authors, {"Norm X" : true, "Norm Y": true}];
+    var checkVals = [topics, authors, {"Norm X" : true, "Norm Y": true, "Ln Plot": true}];
     var checkNames = ["Topics", "Authors", "Options"];
     for(var arr in checkVals) {
         d3.select("#selector")
@@ -280,6 +294,7 @@ function drawGraph(){
         .attr("stroke-width", 1)
         .attr("fill", "none");
 
+    updateAxes();
     d3.select("svg").append("g").call(axisX).attr("id", "x-axis");
     d3.select("svg").append("g").call(axisY).attr("transform", "translate("+SVG_WIDTH+", 0)").attr("id", "y-axis");
 }
