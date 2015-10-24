@@ -24,6 +24,8 @@ function drawGraph(){
     //holds point data for line creation
     var lineData = {};
     var scale = d3.scale.linear().range([0, SVG_HEIGHT]);
+    var axisX = d3.svg.axis().scale(d3.scale.linear().range([0, SVG_WIDTH]));
+    var axisY = d3.svg.axis().scale(d3.scale.linear().range([SVG_HEIGHT, 0])).orient("right");
     //line generator function 
     var lineFunction = d3.svg.line()
                         .x(function(d) { return d.x; })
@@ -37,11 +39,58 @@ function drawGraph(){
         topics[data[pl]['topic']] = true;
         authors[data[pl]['plAuthor']] = true;
         maxPlY[index] = 0;
-        maxX = Math.max(maxX, vidObj.length);
         for(var vidId in vidObj){
-            maxY = Math.max(maxY, vidObj[vidId]['viewCount']);
             maxPlY[index] = Math.max(maxPlY[index], vidObj[vidId]['viewCount']);
-        }
+        }   
+    }
+
+
+    //calculate maximums for shown graphs
+    function newMax(){
+        maxX = 1;
+        maxY = 1;
+        d3.selectAll("g.non-axis").each(function(d, i) {
+            var t = d3.select(this);
+            if(!t.classed("no-show")){
+                maxX = Math.max(t.datum()['videos'].length, maxX);
+                maxY = Math.max(maxY, maxPlY[t.attr("id")]);
+            }
+        });
+    }
+
+    function updatePlot(){
+        lineData = {};
+        d3.selectAll('g.non-axis').each(function() {
+            d3.select(this).selectAll('circle').transition()
+            .attr("cx", function(d, i) {return getX(d, i, this);})
+            .attr("cy", function(d) {return getY(d, this);})
+            .each(function(d, i) {
+                var p = d3.select(this.parentNode);
+                var plId = p.datum()['plId'];
+                if(lineData[plId] == null)
+                    lineData[plId] = [];
+                lineData[plId].push(
+                    {"x": getX(d, i, this),
+                    "y": getY(d, this)}
+                );
+                if(i === p.datum()['videos'].length-1){
+                    updatePath(this.parentNode);
+                }
+            });
+        });
+    }
+
+    function updateAxes(){
+        if(d3.select("#NormX-box").property("checked"))
+            axisX.scale(d3.scale.linear().range([0, SVG_WIDTH]));
+        else
+            axisX.scale(d3.scale.linear().domain([0, maxX]).range([0, SVG_WIDTH]));
+        if(d3.select("#NormY-box").property("checked"))
+            axisY.scale(d3.scale.linear().range([0, SVG_HEIGHT]));
+        else
+            axisY.scale(d3.scale.linear().domain([maxY, 0]).range([0, SVG_HEIGHT]));
+        d3.select("#x-axis").call(axisX);
+        d3.select("#y-axis").call(axisY);
     }
 
     //generate checkbox container
@@ -68,31 +117,15 @@ function drawGraph(){
             .attr('value', rms(i))
             .attr('class', checkNames[arr])
             .attr('id', rms(i)+"-box");
+            //norm box behavior
             if(arr == 2){
                 input.property("checked", true);
                 input.on("change", function(){
-                    lineData = {};
-                    d3.selectAll('g').each(function() {
-                        d3.select(this).selectAll('circle').transition()
-                        .attr("cx", function(d, i) {return getX(d, i, this);})
-                        .attr("cy", function(d) {return getY(d, this);})
-                        .each(function(d, i) {
-                            var p = d3.select(this.parentNode);
-                            var plId = p.datum()['plId'];
-                            if(lineData[plId] == null)
-                                lineData[plId] = [];
-                            lineData[plId].push(
-                                {"x": getX(d, i, this),
-                                "y": getY(d, this)}
-                            );
-                            if(i === p.datum()['videos'].length-1){
-                                updatePath(this.parentNode);
-                            }
-                        });
-                        console.log("hmm");
-                    });
+                    updatePlot();
+                    updateAxes();
                 });
             }
+            //topic/author box behavior
             else{
                input.on("change", function(){
                     var noShowSet = !d3.select(this).property("checked")
@@ -103,6 +136,9 @@ function drawGraph(){
                         d3.selectAll("g."+d3.select(this).property("value"))
                         .classed("no-show", false);
                     });
+                    newMax();
+                    updatePlot();
+                    updateAxes();
                 });
             }
         }
@@ -125,12 +161,13 @@ function drawGraph(){
       .selectAll("svg").data(data)
       .enter().append("g")
       .attr('id', function(d) {return d['plId']})
-      .attr('class', function(d) {return rms(d['topic']) +" "+rms(d['plAuthor']) + " no-show";});
+      .attr('class', function(d) {return rms(d['topic']) +" "+rms(d['plAuthor']) + " non-axis no-show";});
 
     var topics = d3.selectAll(".Topics");
     var rand = Math.floor(Math.random()*topics.size());
     var checked =topics.filter(function(d, i){return i === rand}).property('checked', true);
     d3.selectAll("g."+checked.property("value")).classed("no-show", false);
+    newMax();
 
     //generate vidView container
     var vidView = d3.select(GRAPH_LOC)
@@ -197,6 +234,9 @@ function drawGraph(){
         .selectAll("path")
         .attr("stroke-width", 1)
         .attr("fill", "none");
+
+    d3.select("svg").append("g").call(axisX).attr("id", "x-axis");
+    d3.select("svg").append("g").call(axisY).attr("id", "y-axis");
 
     function getX(d, i, t){
         if(d3.select("#NormX-box").property("checked"))
