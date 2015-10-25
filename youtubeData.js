@@ -3,18 +3,20 @@ function importAndGraph(url, gl, svgw, svgh, opw, vpw){
     d3.json(url, function(error, json) {
     if (error) return console.warn(error);
         var data = json;
-        console.log(data);
-        drawGraph(data, gl, svgw, svgh, opw, vpw);
+        var yd = new ydGraph(data,gl,svgw,svgh,opw,vpw);
+        yd.drawGraph(data, gl, svgw, svgh, opw, vpw);
     });
 }
 
-function drawGraph(d, gl, svgw, svgh, opw, vpw){
+//basic graph constructor
+function ydGraph(d, gl, svgw, svgh, opw, vpw){
+    
     var data = d;
-    var SVG_WIDTH = svgw;            //in px
-    var SVG_HEIGHT = svgh;           //in px
+    var SVG_WIDTH = svgw;           //in px
+    var SVG_HEIGHT = svgh;          //in px
     var OPTION_PANE_WIDTH = opw;    //in px
     var VID_PANE_WIDTH = vpw;       //in px
-    var GRAPH_LOC = gl;  //point of graph insertion
+    var GRAPH_LOC = gl;             //point of graph insertion
     var PRETTY_X_OFFSET = 3;        //push graph right
     var PRETTY_Y_OFFSET = 10;       //push graph down
     
@@ -37,10 +39,13 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
                         .y(function(d) { return d.y; })
                         .interpolate("linear");
 
-    var colors = //for auto-coloring
+    var colors = //for auto-coloring, change as needed
     ["red", "green", "blue", "orange", "purple", "darkblue", "fuchsia", 
     "maroon", "silver", "slateblue", "darkgoldenrod", "indigo", "plum", "magenta",
     "olive", "orangered", "teal", "darkorchid", "brown", "azure"];
+ 
+    ydGraph.id++;
+    var id = ydGraph.id;
 
     var mousedPath, mousedCircles; //previously moused element (for removal on new mouseover)
 
@@ -48,17 +53,18 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
     *                           Helpers                               *
     ******************************************************************/
     //get x value for circle
-    function getX(d, i, t){
-        if(d3.select("#_NormX-box").property("checked"))
+    var getX = function(d, i, t){
+        if(d3.select("#_NormX-box"+id).property("checked"))
             return SVG_WIDTH * i/d3.select(t.parentNode).datum()['videos'].length + PRETTY_X_OFFSET;
         else
             return SVG_WIDTH * i/maxX + PRETTY_X_OFFSET;
     }
 
     //get y value for circle
-    function getY(d, t){
-        if(d3.select("#_NormY-box").property("checked")){
-            var localMaxY = maxPlY[d3.select(t.parentNode).datum()['plId']];
+    var getY = function(d, t){
+
+        if(d3.select("#_NormY-box"+id).property("checked")){
+            var localMaxY = maxPlY[d3.select(t.parentNode).datum()['plId']+id];
             newScale(localMaxY);
             return SVG_HEIGHT - (SVG_HEIGHT-PRETTY_Y_OFFSET)*scaleY(d['viewCount'])/scaleY(localMaxY);
         }
@@ -67,7 +73,7 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
             return SVG_HEIGHT - (SVG_HEIGHT-PRETTY_Y_OFFSET)*scaleY(d['viewCount'])/scaleY(maxY);             
         }
         function newScale(endDomain){
-            if(d3.select("#_LnPlot-box").property("checked"))
+            if(d3.select("#_LnPlot-box"+id).property("checked"))
                 scaleY = d3.scale.log().base(Math.E).domain([1, endDomain]).range([0, 1]);
             else
                 scaleY = d3.scale.linear();
@@ -75,22 +81,22 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
     }
     
     //simple url return function
-    function getURL(d, t){
+    var getURL = function(d, t){
         vidId = d["videoId"];
         plId = d3.select(t.parentNode).datum()["plId"];
         return "https://www.youtube.com/watch?v="+vidId+"&list="+plId;
     }
 
     //make valid CSS class/id name
-    function validify(s){
+    var validify = function(s){
         return "_"+s.replace(/[^A-Za-z0-9]/g, "");
     }
 
     //calculate maximums for shown graphs
-    function newMax(){
+    var newMax = function(){
         maxX = 1;
         maxY = 1;
-        d3.selectAll("g.non-axis").each(function(d, i) {
+        d3.select("#data-svg"+id).selectAll("g.non-axis").each(function(d, i) {
             var t = d3.select(this);
             if(!t.classed("no-show")){
                 maxX = Math.max(t.datum()['videos'].length, maxX);
@@ -99,18 +105,18 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
         });
     }
 
-    function updatePlot(){
+    var updatePlot = function(){
         lineData = {};
-        d3.selectAll('g.non-axis').each(function() {
+        d3.select("#data-svg"+id).selectAll('g.non-axis').each(function() {
             d3.select(this).selectAll('circle').transition().duration(500)
             .attr("cx", function(d, i) {return getX(d, i, this);})
             .attr("cy", function(d) {return getY(d, this);})
             .each(function(d, i) {
                 var p = d3.select(this.parentNode);
                 var plId = p.datum()['plId'];
-                if(lineData[plId] == null)
-                    lineData[plId] = [];
-                lineData[plId].push(
+                if(lineData[plId+id] == null)
+                    lineData[plId+id] = [];
+                lineData[plId+id].push(
                     {"x": getX(d, i, this),
                     "y": getY(d, this)}
                 );
@@ -121,26 +127,26 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
         });
     }
 
-    function updatePath(t){
+    var updatePath = function(t){
         var plId = d3.select(t).attr('id');
         if(lineData[plId] == null) return; //empty playlist!
         d3.select(t).select("path").transition().duration(500).attr("d", lineFunction(lineData[plId]));
     }
 
 
-    function updateAxes(){
-        if(d3.select("#_NormX-box").property("checked"))
+    var updateAxes = function(){
+        if(d3.select("#_NormX-box"+id).property("checked"))
             axisX.scale(d3.scale.linear().range([0, SVG_WIDTH]));
         else
             axisX.scale(d3.scale.linear().domain([0, maxX]).range([0, SVG_WIDTH]));
-        if(d3.select("#_NormY-box").property("checked"))
+        if(d3.select("#_NormY-box"+id).property("checked"))
             axisY.scale(d3.scale.linear().range([SVG_HEIGHT, 0]));
-        else if(d3.select("#_LnPlot-box").property("checked"))
+        else if(d3.select("#_LnPlot-box"+id).property("checked"))
             axisY.scale(d3.scale.log().domain([1, maxY]).range([SVG_HEIGHT, 0]));  
         else
             axisY.scale(d3.scale.linear().domain([0, maxY]).range([SVG_HEIGHT, 0]));
-        d3.select("#x-axis").call(axisX);
-        d3.select("#y-axis").attr("transform", "translate("+SVG_WIDTH+", 0)").call(axisY);
+        d3.select("#x-axis"+id).call(axisX);
+        d3.select("#y-axis"+id).attr("transform", "translate("+SVG_WIDTH+", 0)").call(axisY);
     }
 
     //generate checkboxes
@@ -148,12 +154,12 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
              labels for checkboxes,
              name for labels container,
              function checkbox does on click*/
-    function genChecks(loc, vals, name, f){
+    var genChecks = function(loc, vals, name, f){
         d3.select(loc)
         .append('div')
         .html("<b>"+name+"</b>");
         for (var i in vals){
-            var div = d3.select("#selector")
+            var div = d3.select("#selector"+id)
             .append('div')
             div.append('label')
             .text(vals[i])
@@ -161,7 +167,7 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
             .attr('type', 'checkbox')
             .attr('value', validify(vals[i]))
             .attr('class', validify(name))
-            .attr('id', validify(vals[i])+"-box");
+            .attr('id', validify(vals[i])+"-box"+id);
             //norm box behavior
             input.on("change", f);
         }
@@ -170,42 +176,46 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
     //generate vidView container
     /*INPUT: vvd:           Text data to be displayed in viewer
              imgShow:       Display img thumbnail*/
-    function genVidView(vvd, imgShow){
+    var genVidView= function(vvd, imgShow){
         var vidView = d3.select(GRAPH_LOC)
         .append("div")
-        .attr("id", "vid-view")
+        .attr("id", "vid-view"+id)
+        .classed("vid-view", true)
         .style( {"height"   : SVG_HEIGHT,
                  "width"    : VID_PANE_WIDTH });
         if(imgShow){
             vidView.append("div")
-            .attr("id", "vid-img");
+            .attr("id", "vid-img"+id)
+            .classed("vid-img", true);
         }
         vidView.append("div")
-        .attr("id", "info-box");
-        d3.select("#info-box").selectAll("div")
+        .attr("id", "info-box"+id)
+        .classed("info-box", true);
+        d3.select("#info-box"+id).selectAll("div")
         .data(vvd)
         .enter().append("div")
-        .attr("id", function(d) {return validify(d); })
+        .attr("id", function(d) {return validify(d)+id; })
         .html(function(d){ return "<b>"+d+": </b>"; })
         .append("span");
     }
 
     //which checkboxes to initialize on
     /*INPUT: ind:       array of checkbox selectors to start checked*/
-    function startChecked(ind){
+    var startChecked = function(ind){
         for(i in ind){
             var checked = d3.selectAll(ind[i]).property('checked', true);
-            d3.selectAll("g."+checked.property("value")).classed("no-show", false);
+            d3.select("#data-svg"+id).selectAll("g."+checked.property("value")).classed("no-show", false);
         }
         newMax();
     }
 
-    function genGroups(){
+    var genGroups = function(){
     //generate groupings
     return d3.select(GRAPH_LOC)
       .style( {  'height'    : SVG_HEIGHT+'px',
                 'width'     : OPTION_PANE_WIDTH+VID_PANE_WIDTH+SVG_WIDTH+100+'px' } )
       .append("svg")
+      .attr("id", "data-svg"+id)
       //deselect if clicked off selection
       .on("click", function() {
             if(mousedCircles != null)
@@ -216,39 +226,40 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
       .attr('width', SVG_WIDTH+'px')
       .attr('height', SVG_HEIGHT+'px')
       .style('border', "1px solid black")
-      .selectAll("svg").data(data)
+      .selectAll("#data-svg"+id).data(data)
       .enter().append("g")
-      .attr('id', function(d) {return d['plId']})
+      .attr('id', function(d) {return d['plId']+id})
       .attr('class', function(d) {return validify(d['topic']) +" "+validify(d['plAuthor']) + " non-axis no-show";});
     }
 
     //generate circles
     /*INPUT:    toAppend:   d3 selection on which to append circles*/
-    function genCircles(toAppend){
-
-        gs.selectAll("g").data(function(d, i) {return d['videos'];})
+    var genCircles = function(appendTo){
+        appendTo.selectAll("g").data(function(d, i) {return d['videos'];})
           .enter().append('circle')
-          .attr("class", function() {return d3.select(this.parentNode).datum()['topic']})
-          .attr("id", function(d) {return d['videoId'];})
+          .attr("class", function() {return validify(d3.select(this.parentNode).datum()['topic'])})
+          .attr("id", function(d) {return d['videoId']+id;})
           .attr("cx", function(d, i) {return getX(d, i, this);}) 
           .attr("cy", function(d) {return getY(d, this);})
           .attr("r", 4)
           .each(function() {
-                lineData[d3.select(this.parentNode).datum()['plId']].push(
+                var plId = d3.select(this.parentNode).datum()['plId']+id;
+                if(lineData[plId] == null)
+                    lineData[plId] = [];
+                lineData[plId].push(
                       {"x": d3.select(this).attr("cx"),
                        "y": d3.select(this).attr("cy")}
-                )}
+                );}
           //expand line and add description on node mouseover
           ).on("mouseover", function(d){
                 var pd = d3.select(this.parentNode).classed("selected", true).datum();
-                d3.select('#vid-img')
+                d3.select('#vid-img'+id)
                 .html('<img src="'+pd['thumbURL']+'"/>');
-                d3.selectAll("#_Title span").text(d['title']);
-                d3.selectAll("#_Link").html("<b><a href="+getURL(d, this)+">LINK</a></b>");
-                d3.selectAll("#_ViewCount span").text(d['viewCount']);
-                d3.selectAll("#_Author span").text(pd['plAuthor']);
-                d3.selectAll("#_Description span").text(pd['description']);
-        
+                d3.selectAll("#_Title"+id+" span").text(d['title']);
+                d3.selectAll("#_Link"+id).html("<b><a href="+getURL(d, this)+">LINK</a></b>");
+                d3.selectAll("#_ViewCount"+id+" span").text(d['viewCount']);
+                d3.selectAll("#_Author"+id+" span").text(pd['plAuthor']);
+                d3.selectAll("#_Description"+id+" span").text(pd['description']);
                 if(mousedCircles != null)
                     mousedCircles.attr("r", 4);
                 if(mousedPath != null) 
@@ -266,9 +277,9 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
 
     //generates paths
     /*Input:    toAppend    d3 selection on which to append paths*/
-    function genPaths(toAppend){
-        gs.append('path')
-          .attr("class", function(d) {return validify(d['topic'])+"-line"})
+    var genPaths = function(appendTo){
+        appendTo.append('path')
+          .attr("class", function(d) {return validify(d['topic'])+"-line data-line"})
           .attr("id", function(d) { lineData[d['plId']] = []; return d['plId']; });
 
         var i = 0;
@@ -280,66 +291,71 @@ function drawGraph(d, gl, svgw, svgh, opw, vpw){
         }
     }
 
-    //initialize data, helping variables
-    for(var pl in data){
-        var vidObj = data[pl]['videos'];
-        index = data[pl]['plId'];
-        topics[data[pl]['topic']] = true;
-        authors[data[pl]['plAuthor']] = true;
-        maxPlY[index] = 0;
-        for(var vidId in vidObj){
-            maxPlY[index] = Math.max(maxPlY[index], vidObj[vidId]['viewCount']);
-        }   
-    }
+    this.drawGraph = function(d, gl, svgw, svgh, opw, vpw){
+        //initialize data, helping variables
+        for(var pl in data){
+            var vidObj = data[pl]['videos'];
+            index = data[pl]['plId'];
+            topics[data[pl]['topic']] = true;
+            authors[data[pl]['plAuthor']] = true;
+            maxPlY[index+id] = 0;
+            for(var vidId in vidObj){
+                maxPlY[index+id] = Math.max(maxPlY[index+id], vidObj[vidId]['viewCount']);
+            }   
+        }
 
-    /******************************************************************
-    *                           Program                               *
-    ******************************************************************/
+        /******************************************************************
+        *                           PROGRAM                               *
+        ******************************************************************/
 
-    //generate checkbox container
-    d3.select(GRAPH_LOC)
-    .append('div')
-    .attr('id', 'selector')
-    .style( {'width' : OPTION_PANE_WIDTH+'px',
-            'height': SVG_HEIGHT+'px'}   );
+        //generate checkbox container
+        d3.select(GRAPH_LOC)
+        .append('div')
+        .attr('id', "selector"+id)
+        .classed("selector", true)
+        .style( {'width' : OPTION_PANE_WIDTH+'px',
+                'height': SVG_HEIGHT+'px'}   );
 
-    //generate checkboxes
-    var toPass = function() {updatePlot(), updateAxes()};
-    genChecks("#selector", ["Norm X", "Norm Y", "Ln Plot"], "Options",  toPass);
-    toPass = function () {
-        var noShowSet = !d3.select(this).property("checked")
-        d3.selectAll("g."+d3.select(this).property("value"))
-        .classed("no-show", noShowSet);
-        //repair intersection with checked boxes (has to be a better way...)
-        d3.selectAll("#selector input:checked").each(function(){
-            d3.selectAll("g."+d3.select(this).property("value"))
-            .classed("no-show", false);
-        });
-        newMax();
-        updatePlot();
+        //generate checkboxes
+        var toPass = function() {updatePlot(), updateAxes()};
+        genChecks("#selector"+id, ["Norm X", "Norm Y", "Ln Plot"], "Options",  toPass);
+        toPass = function () {
+            var noShowSet = !d3.select(this).property("checked")
+            d3.select("#data-svg"+id).selectAll("g."+d3.select(this).property("value"))
+            .classed("no-show", noShowSet);
+            //repair intersection with checked boxes (has to be a better way...)
+            d3.selectAll("#selector"+id+" input:checked").each(function(){
+                d3.select("#data-svg"+id).selectAll("g."+d3.select(this).property("value"))
+                .classed("no-show", false);
+            });
+            newMax();
+            updatePlot();
+            updateAxes();
+        };
+        genChecks("#selector" + id, Object.keys(topics).sort(), "Topics", toPass);
+        genChecks("#selector" + id, Object.keys(authors).sort(), "Authors", toPass);
+        var gs = genGroups();
+        genPaths(gs);
+
+        var topicsList = Object.keys(topics);
+        var rand = Math.floor(Math.random()*topicsList.length);
+        startChecked(["#"+validify(topicsList[rand])+"-box"+id]);
+
+        var vidViewData = ["Title", "Link", "View Count", "Author", "Description"];
+        genVidView(vidViewData, true);
+
+        genCircles(gs);
+        //initialize paths
+        d3.selectAll("g").each(function() {updatePath(this)})
+            .selectAll(".data-line")
+            .attr("stroke-width", 1)
+            .attr("fill", "none");
         updateAxes();
-    };
-    genChecks("#selector", Object.keys(topics).sort(), "Topics", toPass);
-    genChecks("#selector", Object.keys(authors).sort(), "Authors", toPass);
-    var gs = genGroups();
-    genPaths(gs);
-
-    var topicsList = Object.keys(topics);
-    var rand = Math.floor(Math.random()*topicsList.length);
-    startChecked(["#"+validify(topicsList[rand])+"-box"]);
-
-    var vidViewData = ["Title", "Link", "View Count", "Author", "Description"];
-    genVidView(vidViewData, true);
-
-    genCircles(gs);
-
-    //initialize paths
-    d3.selectAll("g").each(function() {updatePath(this)})
-        .selectAll("path")
-        .attr("stroke-width", 1)
-        .attr("fill", "none");
-
-    updateAxes();
-    d3.select("svg").append("g").call(axisX).attr("id", "x-axis");
-    d3.select("svg").append("g").call(axisY).attr("transform", "translate("+SVG_WIDTH+", 0)").attr("id", "y-axis");
+        d3.select("#data-svg"+id).append("g").call(axisX).attr("id", "x-axis"+id);
+        d3.select("#data-svg"+id).append("g").call(axisY).attr("transform", "translate("+SVG_WIDTH+", 0)").attr("id", "y-axis"+id);
+   
+   }
 }
+
+ydGraph.id = 0;
+
